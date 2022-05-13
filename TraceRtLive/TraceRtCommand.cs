@@ -43,7 +43,7 @@ namespace TraceRtLive
                     await tracer.TraceAsync(target, settings.MaxHops.Value,
                         hopResult =>
                         {
-                            table.AddWeightedRow(hopResult.Hops,
+                            table.AddOrUpdateWeightedRow(hopResult.Hops,
                                 hopResult.Hops.ToString(),
                                 $"[darkcyan]{hopResult.IP}[/]",
                                 $"[{RttColor(hopResult.RoundTripTime)}]{hopResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");
@@ -51,7 +51,7 @@ namespace TraceRtLive
                         },
                         targetResult =>
                         {
-                            table.AddWeightedRow(targetResult.Hops,
+                            table.AddOrUpdateWeightedRow(int.MaxValue,
                                 targetResult.Hops.ToString(),
                                 $"[cyan]{targetResult.IP}[/]",
                                 $"[{RttColor(targetResult.RoundTripTime)}]{targetResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");

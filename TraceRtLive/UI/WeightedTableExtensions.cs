@@ -10,14 +10,15 @@ namespace TraceRtLive.UI
 
         private static object _lock = new object();
 
-        /// <inheritdoc cref="AddWeightedRow(Table, int, IEnumerable{IRenderable})"/>
-        public static void AddWeightedRow(this Table table, int weight, params string[] columns)
-            => AddWeightedRow(table, weight, columns.Select(column => new Markup(column)));
+        /// <inheritdoc cref="AddOrUpdateWeightedRow(Table, int, IEnumerable{IRenderable})"/>
+        public static void AddOrUpdateWeightedRow(this Table table, int weight, params string[] columns)
+            => AddOrUpdateWeightedRow(table, weight, columns.Select(column => new Markup(column)));
 
         /// <summary>
         /// <para>
-        /// Add a row with a specified <paramref name="weight"/> value. 
-        /// This will be sorted in the table with other rows based on their
+        /// Add or updates a row with a specified <paramref name="weight"/> value.
+        /// If the weight exists, the row will be updated, otherwise it will be added.
+        /// Added rows are sorted in the table with other rows based on their
         /// weights.
         /// </para>
         /// <para>
@@ -28,7 +29,7 @@ namespace TraceRtLive.UI
         /// <param name="table">Table to update</param>
         /// <param name="weight">Weight of the row to add, which determines its placement</param>
         /// <param name="columns">Column data to add</param>
-        public static void AddWeightedRow(this Table table, int weight, IEnumerable<IRenderable> columns)
+        public static void AddOrUpdateWeightedRow(this Table table, int weight, IEnumerable<IRenderable> columns)
         {
             var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
 
@@ -40,12 +41,32 @@ namespace TraceRtLive.UI
                     rowMap.Add(weight);
                     table.AddRow(columns);
                 }
+                else if (rowMap[rowIndex] == weight)
+                {
+                    // update
+                    table.UpdateRow(rowIndex, columns);
+                }
                 else
                 {
                     // insert
                     rowMap.Insert(rowIndex, weight);
                     table.InsertRow(rowIndex, columns);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Updates all cells in a given row
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="rowIndex"></param>
+        /// <param name="columns"></param>
+        public static void UpdateRow(this Table table, int rowIndex, IEnumerable<IRenderable> columns)
+        {
+            var colIndex = 0;
+            foreach (var column in columns)
+            {
+                table.UpdateCell(rowIndex, colIndex++, column);
             }
         }
 

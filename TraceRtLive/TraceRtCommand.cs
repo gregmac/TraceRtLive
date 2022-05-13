@@ -3,6 +3,7 @@ using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Net;
 using TraceRtLive.Trace;
+using TraceRtLive.UI;
 
 namespace TraceRtLive
 {
@@ -43,13 +44,21 @@ namespace TraceRtLive
                         await tracer.TraceAsync(target, settings.MaxHops.Value,
                             hopResult =>
                             {
-                                table.AddRow(hopResult.Hops.ToString(), hopResult.IP.ToString(), hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                                table.AddWeightedRow(hopResult.Hops,
+                                    hopResult.Hops.ToString(),
+                                    hopResult.IP.ToString(),
+                                    hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
                                 live.Refresh();
                             },
                             targetResult =>
                             {
-                                table.AddRow(targetResult.Hops.ToString(), targetResult.IP.ToString(), targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                                table.AddWeightedRow(targetResult.Hops,
+                                    targetResult.Hops.ToString(),
+                                    targetResult.IP.ToString(),
+                                    targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
                                 live.Refresh();
+
+                                // sucess, return 0
                                 returnCode = 0;
                             });
                     }

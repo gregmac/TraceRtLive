@@ -4,25 +4,22 @@ using NetPing = System.Net.NetworkInformation.Ping;
 
 namespace TraceRtLive.Ping
 {
-    public sealed class AsyncPinger : IDisposable, IAsyncPing
+    public sealed class AsyncPinger : IAsyncPing
     {
         public int TimeoutMilliseconds { get; }
-        private NetPing Ping { get; }
 
         public AsyncPinger(int timeoutMilliseconds)
         {
-            Ping = new NetPing();
             TimeoutMilliseconds = timeoutMilliseconds;
         }
 
-        /// <inheritdoc/>
-        public void Dispose() => Ping.Dispose();
-
         public async Task<PingReply> PingAsync(IPAddress target, int ttl, CancellationToken cancellation)
         {
+            using var ping = new NetPing();
+
             var pingOptions = new PingOptions { Ttl = ttl, DontFragment = true };
             var sent = DateTime.UtcNow;
-            var result = await Ping.SendPingAsync(target, TimeoutMilliseconds, BitConverter.GetBytes(sent.Ticks), pingOptions)
+            var result = await ping.SendPingAsync(target, TimeoutMilliseconds, BitConverter.GetBytes(sent.Ticks), pingOptions)
                 .WaitAsync(cancellation) // allow cancellation
                 .ConfigureAwait(false);
             return new PingReply

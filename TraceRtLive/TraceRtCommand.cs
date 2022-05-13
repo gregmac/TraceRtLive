@@ -39,29 +39,27 @@ namespace TraceRtLive
             await AnsiConsole.Live(table)
                 .StartAsync(async live =>
                 {
-                    using (var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value))
-                    {
-                        await tracer.TraceAsync(target, settings.MaxHops.Value,
-                            hopResult =>
-                            {
-                                table.AddWeightedRow(hopResult.Hops,
-                                    hopResult.Hops.ToString(),
-                                    hopResult.IP.ToString(),
-                                    hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
-                                live.Refresh();
-                            },
-                            targetResult =>
-                            {
-                                table.AddWeightedRow(targetResult.Hops,
-                                    targetResult.Hops.ToString(),
-                                    targetResult.IP.ToString(),
-                                    targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
-                                live.Refresh();
+                    var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
+                    await tracer.TraceAsync(target, settings.MaxHops.Value,
+                        hopResult =>
+                        {
+                            table.AddWeightedRow(hopResult.Hops,
+                                hopResult.Hops.ToString(),
+                                hopResult.IP.ToString(),
+                                hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                            live.Refresh();
+                        },
+                        targetResult =>
+                        {
+                            table.AddWeightedRow(targetResult.Hops,
+                                targetResult.Hops.ToString(),
+                                targetResult.IP.ToString(),
+                                targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                            live.Refresh();
 
-                                // sucess, return 0
-                                returnCode = 0;
-                            });
-                    }
+                            // sucess, return 0
+                            returnCode = 0;
+                        });
                 });
 
             return returnCode;

@@ -4,7 +4,7 @@ using TraceRtLive.Ping;
 
 namespace TraceRtLive.Trace
 {
-    public sealed class AsyncTracer : IDisposable
+    public sealed class AsyncTracer
     {
         private IAsyncPing _ping { get; }
 
@@ -15,9 +15,6 @@ namespace TraceRtLive.Trace
         {
             _ping = ping;
         }
-
-        /// <inheritdoc/>
-        public void Dispose() => (_ping as IDisposable)?.Dispose();
 
         public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> hopResultAction, Action<TraceResult> targetResultAction)
         {

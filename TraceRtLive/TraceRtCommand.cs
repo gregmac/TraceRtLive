@@ -45,16 +45,16 @@ namespace TraceRtLive
                         {
                             table.AddWeightedRow(hopResult.Hops,
                                 hopResult.Hops.ToString(),
-                                hopResult.IP.ToString(),
-                                hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                                $"[darkcyan]{hopResult.IP}[/]",
+                                $"[{RttColor(hopResult.RoundTripTime)}]{hopResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");
                             live.Refresh();
                         },
                         targetResult =>
                         {
                             table.AddWeightedRow(targetResult.Hops,
                                 targetResult.Hops.ToString(),
-                                targetResult.IP.ToString(),
-                                targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
+                                $"[cyan]{targetResult.IP}[/]",
+                                $"[{RttColor(targetResult.RoundTripTime)}]{targetResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");
                             live.Refresh();
 
                             // sucess, return 0
@@ -64,5 +64,16 @@ namespace TraceRtLive
 
             return returnCode;
         }
+
+        private static readonly Dictionary<TimeSpan?, string> ColorThresholds = new Dictionary<TimeSpan?, string>
+        {
+            { TimeSpan.FromSeconds(2), "Red" },
+            { TimeSpan.FromSeconds(1), "DarkRed" },
+            { TimeSpan.FromMilliseconds(200), "DarkGreen" },
+            { TimeSpan.Zero, "Green" },
+        };
+
+        private static string RttColor(TimeSpan time)
+            => ColorThresholds.FirstOrDefault(x => time >= x.Key).Value ?? "Green";
     }
 }

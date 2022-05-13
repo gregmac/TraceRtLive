@@ -43,12 +43,12 @@ namespace TraceRtLive
                         await tracer.TraceAsync(target, settings.MaxHops.Value,
                             hopResult =>
                             {
-                                table.AddRow(hopResult.Hops.ToString(), hopResult.IP.ToString(), hopResult.RoundTripTime.ToString("n0") + "ms");
+                                table.AddRow(hopResult.Hops.ToString(), hopResult.IP.ToString(), hopResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
                                 live.Refresh();
                             },
                             targetResult =>
                             {
-                                table.AddRow(targetResult.Hops.ToString(), targetResult.IP.ToString(), targetResult.RoundTripTime.ToString("n0") + "ms");
+                                table.AddRow(targetResult.Hops.ToString(), targetResult.IP.ToString(), targetResult.RoundTripTime.TotalMilliseconds.ToString("n0") + "ms");
                                 live.Refresh();
                                 returnCode = 0;
                             });

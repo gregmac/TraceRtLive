@@ -9,30 +9,26 @@ namespace TraceRtLive.Ping
         public int TimeoutMilliseconds { get; }
         private NetPing Ping { get; }
 
-        private long _payloadData;
-
         public AsyncPinger(int timeoutMilliseconds)
         {
             Ping = new NetPing();
             TimeoutMilliseconds = timeoutMilliseconds;
-            _payloadData = DateTime.UtcNow.Ticks;
         }
 
         /// <inheritdoc/>
         public void Dispose() => Ping.Dispose();
 
-        private byte[] NextPayload()
-            => BitConverter.GetBytes(Interlocked.Increment(ref _payloadData));
-
         public async Task<PingReply> PingAsync(IPAddress target, int ttl, CancellationToken cancellation)
         {
-            var result = await Ping.SendPingAsync(target, TimeoutMilliseconds, NextPayload(), new PingOptions { Ttl = ttl, DontFragment = true })
+            var pingOptions = new PingOptions { Ttl = ttl, DontFragment = true };
+            var sent = DateTime.UtcNow;
+            var result = await Ping.SendPingAsync(target, TimeoutMilliseconds, BitConverter.GetBytes(sent.Ticks), pingOptions)
                 .WaitAsync(cancellation) // allow cancellation
                 .ConfigureAwait(false);
             return new PingReply
             {
                 Address = result.Address,
-                RoundtripTime = result.RoundtripTime,
+                RoundtripTime = DateTime.UtcNow.Subtract(sent),
                 Status = result.Status,
             };
         }

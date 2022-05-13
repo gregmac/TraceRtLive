@@ -20,7 +20,7 @@ namespace TraceRtLive.Tests
 			// if past end, use last entry
 			var rttIndex = ttl > _rttValues.Length ? _rttValues.Length - 1 : ttl - 1;
 
-			var rtt = Math.Abs(_rttValues[rttIndex]);
+			var rtt = TimeSpan.FromMilliseconds(Math.Abs(_rttValues[rttIndex]));
 			await Task.Delay(rtt);
 
 			if (ttl < _rttValues.Length)

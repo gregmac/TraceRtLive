@@ -6,6 +6,6 @@ namespace TraceRtLive.Trace
     {
         public int Hops { get; init; }
         public IPAddress? IP { get; init; }
-        public long RoundTripTime { get; init; }
+        public TimeSpan RoundTripTime { get; init; }
     }
 }

@@ -20,6 +20,10 @@ namespace TraceRtLive.Trace
         {
             var cancellation = new CancellationTokenSource();
 
+            // record 
+            var targetMinHops = int.MaxValue;
+            var targetMinHopsLock = new object();
+
             var hops = 1;
             while (hops <= maxHops && !cancellation.IsCancellationRequested)
             {
@@ -34,23 +38,32 @@ namespace TraceRtLive.Trace
                         {
                             var pingResult = await _ping.PingAsync(target, hop, cancellation.Token);
 
-                            var result = new TraceResult
+                            if (target.Equals(pingResult.Address))
                             {
-                                Hops = hop,
-                                IP = pingResult.Address,
-                                RoundTripTime = pingResult.RoundtripTime,
-                            };
+                                // always use lowest hop value
+                                lock (targetMinHopsLock)
+                                {
+                                    if (hop < targetMinHops) targetMinHops = hop;
+                                }
 
-                            if (pingResult.Status == IPStatus.Success)
-                            {
-                                targetResultAction.Invoke(result);
+                                targetResultAction.Invoke(new TraceResult
+                                {
+                                    Hops = targetMinHops,
+                                    IP = pingResult.Address,
+                                    RoundTripTime = pingResult.RoundtripTime,
+                                });
 
                                 // cancel others
                                 cancellation.Cancel();
                             }
                             else
                             {
-                                hopResultAction.Invoke(result);
+                                hopResultAction.Invoke(new TraceResult
+                                {
+                                    Hops = hop,
+                                    IP = pingResult.Address,
+                                    RoundTripTime = pingResult.RoundtripTime,
+                                });
                             }
                         }
                         catch(TaskCanceledException) { /* ignore */ }

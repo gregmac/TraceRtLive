@@ -65,7 +65,7 @@ namespace TraceRtLive
             return returnCode;
         }
 
-        private static readonly Dictionary<TimeSpan?, string> ColorThresholds = new Dictionary<TimeSpan?, string>
+        private static readonly Dictionary<TimeSpan, string> ColorThresholds = new Dictionary<TimeSpan, string>
         {
             { TimeSpan.FromSeconds(2), "Red" },
             { TimeSpan.FromSeconds(1), "DarkRed" },

@@ -16,28 +16,40 @@ namespace TraceRtLive.Trace
             _ping = ping;
         }
 
-        public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> hopResultAction, Action<TraceResult> targetResultAction)
+        public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> hopResultAction, Action<TraceResult> targetResultAction,
+            int maxConcurrent = 6)
         {
-            var cancellation = new CancellationTokenSource();
 
             // record 
             var targetMinHops = int.MaxValue;
             var targetMinHopsLock = new object();
-
-            var hops = 1;
-            while (hops <= maxHops && !cancellation.IsCancellationRequested)
+            
+            async Task executeTrace(int startHops)
             {
-                var numConcurrent = 5;
+                // concurrent, unless we exceed maxHops
+                var numConcurrent = startHops + maxConcurrent > maxHops
+                    ? maxHops - startHops
+                    : maxConcurrent;
+                if (numConcurrent <= 0) return;
 
                 await Parallel.ForEachAsync(
-                    Enumerable.Range(hops, numConcurrent),
+                    Enumerable.Range(startHops, numConcurrent),
                     new ParallelOptions { MaxDegreeOfParallelism = numConcurrent, },
-                    async (hop,_) =>
+                    async (hop, _) =>
                     {
                         try
                         {
-                            var pingResult = await _ping.PingAsync(target, hop, cancellation.Token);
+                            // indicate started
+                            hopResultAction.Invoke(new TraceResult
+                            {
+                                Hops = hop,
+                                InProgress = true,
+                            });
 
+                            // execute ping
+                            var pingResult = await _ping.PingAsync(target, hop, CancellationToken.None);
+
+                            // check if target
                             if (target.Equals(pingResult.Address))
                             {
                                 // always use lowest hop value
@@ -52,9 +64,6 @@ namespace TraceRtLive.Trace
                                     IP = pingResult.Address,
                                     RoundTripTime = pingResult.RoundtripTime,
                                 });
-
-                                // cancel others
-                                cancellation.Cancel();
                             }
                             else
                             {
@@ -64,15 +73,19 @@ namespace TraceRtLive.Trace
                                     IP = pingResult.Address,
                                     RoundTripTime = pingResult.RoundtripTime,
                                 });
+
+                                // if last hop in batch, start the next batch
+                                if (hop == startHops + numConcurrent - 1)
+                                {
+                                    await executeTrace(startHops + numConcurrent);
+                                }
                             }
                         }
-                        catch(TaskCanceledException) { /* ignore */ }
-
-                        await Task.Yield();
+                        catch (TaskCanceledException) { /* ignore */ }
                     });
-
-                hops += numConcurrent;
             }
+
+            await executeTrace(1);
         }
     }
 }

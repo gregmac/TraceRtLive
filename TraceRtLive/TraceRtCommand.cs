@@ -30,34 +30,36 @@ namespace TraceRtLive
             var target = IPAddress.Parse(settings.Target);
 
             var table = new Table();
-            table.AddColumn(new TableColumn("Hop").RightAligned());
-            table.AddColumn(new TableColumn("IP").Centered());
-            table.AddColumn(new TableColumn("RTT").RightAligned());
+            table.AddColumn(new TableColumn("Hop").RightAligned().Width(3));
+            table.AddColumn(new TableColumn("IP").Centered().Width(15));
+            table.AddColumn(new TableColumn("RTT").RightAligned().Width(10));
 
             var returnCode = 1;
 
             await AnsiConsole.Live(table)
                 .StartAsync(async live =>
                 {
+                    async Task updateTable(int weight, TraceResult result, string ipColor)
+                    {
+                        table.AddOrUpdateWeightedRow(weight,
+                                result.Hops.ToString(),
+                                $"[{ipColor}]{result.IP}[/]",
+                                result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : "...");
+                        live.Refresh();
+                        await Task.Yield();
+                    }
+
                     var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
                     await tracer.TraceAsync(target, settings.MaxHops.Value,
-                        hopResult =>
+                        async hopResult =>
                         {
-                            table.AddOrUpdateWeightedRow(hopResult.Hops,
-                                hopResult.Hops.ToString(),
-                                $"[darkcyan]{hopResult.IP}[/]",
-                                $"[{RttColor(hopResult.RoundTripTime)}]{hopResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");
-                            live.Refresh();
+                            await updateTable(hopResult.Hops, hopResult, "darkcyan");
                         },
-                        targetResult =>
+                        async targetResult =>
                         {
-                            table.AddOrUpdateWeightedRow(int.MaxValue,
-                                targetResult.Hops.ToString(),
-                                $"[cyan]{targetResult.IP}[/]",
-                                $"[{RttColor(targetResult.RoundTripTime)}]{targetResult.RoundTripTime.TotalMilliseconds:n0}ms[/]");
-                            live.Refresh();
+                            await updateTable(int.MaxValue, targetResult, "cyan");
 
-                            // sucess, return 0
+                            // success, return 0
                             returnCode = 0;
                         });
                 });

@@ -25,6 +25,8 @@ namespace TraceRtLive
             public int? TimeoutMilliseconds { get; init; } = 4000;
         }
 
+        public const string Placeholder = "\u2026";
+
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
         {
             var target = IPAddress.Parse(settings.Target);
@@ -41,26 +43,39 @@ namespace TraceRtLive
                 {
                     async Task updateTable(int weight, TraceResult result, string ipColor)
                     {
-                        table.AddOrUpdateWeightedRow(weight,
+                        await table.AddOrUpdateWeightedRow(weight,
                                 result.Hops.ToString(),
-                                $"[{ipColor}]{result.IP}[/]",
-                                result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : "...");
+                                $"[{ipColor}]{result.IP?.ToString() ?? Placeholder}[/]",
+                                result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : $"[gray]{Placeholder}[/]");
                         live.Refresh();
                         await Task.Yield();
                     }
 
                     var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
                     await tracer.TraceAsync(target, settings.MaxHops.Value,
-                        async hopResult =>
+                        async result =>
                         {
-                            await updateTable(hopResult.Hops, hopResult, "darkcyan");
-                        },
-                        async targetResult =>
-                        {
-                            await updateTable(int.MaxValue, targetResult, "cyan");
+                            switch (result.Status)
+                            {
+                                case TraceResultStatus.InProgress:
+                                    await updateTable(result.Hops, result, "gray");
+                                    break;
+                                case TraceResultStatus.HopResult:
+                                    await updateTable(result.Hops, result, "darkcyan");
+                                    break;
+                                case TraceResultStatus.FinalResult:
+                                    await updateTable(int.MaxValue, result, "cyan");
 
-                            // success, return 0
-                            returnCode = 0;
+                                    // success, return 0
+                                    returnCode = 0;
+
+                                    break;
+                                case TraceResultStatus.Obsolete:
+                                    await table.RemoveWeightedRow(result.Hops);
+                                    live.Refresh();
+                                    await Task.Yield();
+                                    break;
+                            }
                         });
                 });
 

@@ -1,6 +1,7 @@
 ﻿using Spectre.Console;
 using Spectre.Console.Rendering;
 using System.Collections.Concurrent;
+using TraceRtLive.Helpers;
 
 namespace TraceRtLive.UI
 {
@@ -8,10 +9,10 @@ namespace TraceRtLive.UI
     {
         private static ConcurrentDictionary<Table, List<int>> Mappings { get; } = new ConcurrentDictionary<Table, List<int>>();
 
-        private static object _lock = new object();
+        private static AsyncLock _lock = new AsyncLock();
 
         /// <inheritdoc cref="AddOrUpdateWeightedRow(Table, int, IEnumerable{IRenderable})"/>
-        public static void AddOrUpdateWeightedRow(this Table table, int weight, params string[] columns)
+        public static Task AddOrUpdateWeightedRow(this Table table, int weight, params string[] columns)
             => AddOrUpdateWeightedRow(table, weight, columns.Select(column => new Markup(column)));
 
         /// <summary>
@@ -29,11 +30,11 @@ namespace TraceRtLive.UI
         /// <param name="table">Table to update</param>
         /// <param name="weight">Weight of the row to add, which determines its placement</param>
         /// <param name="columns">Column data to add</param>
-        public static void AddOrUpdateWeightedRow(this Table table, int weight, IEnumerable<IRenderable> columns)
+        public static async Task AddOrUpdateWeightedRow(this Table table, int weight, IEnumerable<IRenderable> columns)
         {
             var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
 
-            lock (_lock)
+            using (await _lock.ObtainLock())
             {
                 var rowIndex = rowMap.FindIndex(x => x >= weight);
                 if (rowIndex == -1)
@@ -52,6 +53,8 @@ namespace TraceRtLive.UI
                     rowMap.Insert(rowIndex, weight);
                     table.InsertRow(rowIndex, columns);
                 }
+
+                if (rowMap.Count != table.Rows.Count) throw new InvalidOperationException($"Row mismatch: rowMap: {rowMap.Count}, table: {table.Rows.Count}");
             }
         }
 
@@ -61,7 +64,7 @@ namespace TraceRtLive.UI
         /// <param name="table"></param>
         /// <param name="rowIndex"></param>
         /// <param name="columns"></param>
-        public static void UpdateRow(this Table table, int rowIndex, IEnumerable<IRenderable> columns)
+        private static void UpdateRow(this Table table, int rowIndex, IEnumerable<IRenderable> columns)
         {
             var colIndex = 0;
             foreach (var column in columns)
@@ -71,25 +74,50 @@ namespace TraceRtLive.UI
         }
 
         /// <inheritdoc cref="UpdateWeighted(Table, int, int, IRenderable)"/>
-        public static void UpdateWeighted(this Table table, int weight, int columnIndex, string value)
-            => UpdateWeighted(table, weight, columnIndex, new Markup(value));
+        public static Task UpdateWeightedRow(this Table table, int weight, int columnIndex, string value)
+            => UpdateWeightedRow(table, weight, columnIndex, new Markup(value));
 
         /// <summary>
         /// Update a row based on its weight. The row must have been added with
-        /// <see cref="AddWeightedRow"/> for this to work.
+        /// <see cref="AddOrUpdateWeightedRow"/> for this to work.
         /// </summary>
         /// <param name="table">Table to update</param>
-        /// <param name="weight">Weight of row to udpate. Throws an exception if not found</param>
+        /// <param name="weight">Weight of row to update. Throws an exception if not found</param>
         /// <param name="columnIndex">Column to update</param>
         /// <param name="value">New value</param>
-        public static void UpdateWeighted(this Table table, int weight, int columnIndex, IRenderable value)
+        public static async Task UpdateWeightedRow(this Table table, int weight, int columnIndex, IRenderable value)
         {
             var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
 
-            var rowIndex = rowMap.FindIndex(x => x == weight);
-            if (rowIndex == -1) throw new ArgumentOutOfRangeException("weight not found");
+            using (await _lock.ObtainLock())
+            {
+                var rowIndex = rowMap.FindIndex(x => x == weight);
+                if (rowIndex == -1) throw new ArgumentOutOfRangeException("weight not found");
 
-            table.UpdateCell(rowIndex, columnIndex, value);
+                table.UpdateCell(rowIndex, columnIndex, value);
+            }
+        }
+
+        /// <summary>
+        /// Remove a row based on its weight. The row must have been added with
+        /// <see cref="AddWeightedRow"/> for this to work.
+        /// </summary>
+        /// <param name="table">Table to update</param>
+        /// <param name="weight">Weight of row to remove. Throws an exception if not found</param>
+        public static async Task RemoveWeightedRow(this Table table, int weight)
+        {
+            var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
+
+            using (await _lock.ObtainLock())
+            {
+                if (rowMap.Count != table.Rows.Count) throw new InvalidOperationException($"Row mismatch: rowMap: {rowMap.Count}, table: {table.Rows.Count}");
+
+                var rowIndex = rowMap.FindIndex(x => x == weight);
+                if (rowIndex == -1) throw new ArgumentOutOfRangeException("weight not found");
+
+                rowMap.RemoveAt(rowIndex);
+                table.RemoveRow(rowIndex);
+            }
         }
     }
 }

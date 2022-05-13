@@ -16,8 +16,8 @@ namespace TraceRtLive.Trace
             _ping = ping;
         }
 
-        public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> hopResultAction, Action<TraceResult> targetResultAction,
-            int maxConcurrent = 6)
+        public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> resultAction,
+            int maxConcurrent = 5)
         {
 
             // record 
@@ -40,10 +40,10 @@ namespace TraceRtLive.Trace
                         try
                         {
                             // indicate started
-                            hopResultAction.Invoke(new TraceResult
+                            resultAction.Invoke(new TraceResult
                             {
+                                Status = TraceResultStatus.InProgress,
                                 Hops = hop,
-                                InProgress = true,
                             });
 
                             // execute ping
@@ -58,8 +58,17 @@ namespace TraceRtLive.Trace
                                     if (hop < targetMinHops) targetMinHops = hop;
                                 }
 
-                                targetResultAction.Invoke(new TraceResult
+                                // remove intermediate status result
+                                resultAction.Invoke(new TraceResult
                                 {
+                                    Status = TraceResultStatus.Obsolete,
+                                    Hops = hop,
+                                });
+
+                                // add final result
+                                resultAction.Invoke(new TraceResult
+                                {
+                                    Status = TraceResultStatus.FinalResult,
                                     Hops = targetMinHops,
                                     IP = pingResult.Address,
                                     RoundTripTime = pingResult.RoundtripTime,
@@ -67,8 +76,10 @@ namespace TraceRtLive.Trace
                             }
                             else
                             {
-                                hopResultAction.Invoke(new TraceResult
+                                // add intermediate result
+                                resultAction.Invoke(new TraceResult
                                 {
+                                    Status = TraceResultStatus.HopResult,
                                     Hops = hop,
                                     IP = pingResult.Address,
                                     RoundTripTime = pingResult.RoundtripTime,

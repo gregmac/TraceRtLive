@@ -18,27 +18,47 @@ namespace TraceRtLive.Trace
 
         public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> hopResultAction, Action<TraceResult> targetResultAction)
         {
-            var hops = 0;
-            while (++hops <= maxHops)
+            var cancellation = new CancellationTokenSource();
+
+            var hops = 1;
+            while (hops <= maxHops && !cancellation.IsCancellationRequested)
             {
-                var pingResult = await _ping.PingAsync(target, hops, CancellationToken.None);
+                var numHops = 5;
 
-                var result = new TraceResult
-                {
-                    Hops = hops,
-                    IP = pingResult.Address,
-                    RoundTripTime = pingResult.RoundtripTime,
-                };
+                await Parallel.ForEachAsync(
+                    Enumerable.Range(hops, numHops),
+                    //new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = cancellation.Token },
+                    async (hop,_) =>
+                    {
+                        try
+                        {
+                            var pingResult = await _ping.PingAsync(target, hop, cancellation.Token);
 
+                            var result = new TraceResult
+                            {
+                                Hops = hop,
+                                IP = pingResult.Address,
+                                RoundTripTime = pingResult.RoundtripTime,
+                            };
 
-                if (pingResult.Status == IPStatus.Success)
-                {
-                    targetResultAction.Invoke(result);
-                    return;
-                }
+                            if (pingResult.Status == IPStatus.Success)
+                            {
+                                targetResultAction.Invoke(result);
 
-                hopResultAction.Invoke(result);
-                await Task.Yield();
+                                // cancel others
+                                cancellation.Cancel();
+                            }
+                            else
+                            {
+                                hopResultAction.Invoke(result);
+                            }
+                        }
+                        catch(TaskCanceledException) { /* ignore */ }
+
+                        await Task.Yield();
+                    });
+
+                hops += numHops;
             }
         }
     }

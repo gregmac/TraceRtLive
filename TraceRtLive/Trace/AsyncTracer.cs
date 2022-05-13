@@ -27,11 +27,11 @@ namespace TraceRtLive.Trace
             var hops = 1;
             while (hops <= maxHops && !cancellation.IsCancellationRequested)
             {
-                var numHops = 5;
+                var numConcurrent = 5;
 
                 await Parallel.ForEachAsync(
-                    Enumerable.Range(hops, numHops),
-                    //new ParallelOptions { MaxDegreeOfParallelism = 10, CancellationToken = cancellation.Token },
+                    Enumerable.Range(hops, numConcurrent),
+                    new ParallelOptions { MaxDegreeOfParallelism = numConcurrent, },
                     async (hop,_) =>
                     {
                         try
@@ -71,7 +71,7 @@ namespace TraceRtLive.Trace
                         await Task.Yield();
                     });
 
-                hops += numHops;
+                hops += numConcurrent;
             }
         }
     }

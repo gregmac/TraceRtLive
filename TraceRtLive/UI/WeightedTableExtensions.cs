@@ -37,64 +37,51 @@ namespace TraceRtLive.UI
             using (await _lock.ObtainLock())
             {
                 var rowIndex = rowMap.FindIndex(x => x >= weight);
-                if (rowIndex == -1)
-                {
-                    rowMap.Add(weight);
-                    table.AddRow(columns);
-                }
-                else if (rowMap[rowIndex] == weight)
+                if (rowMap[rowIndex] == weight)
                 {
                     // update
                     table.UpdateRow(rowIndex, columns);
                 }
                 else
                 {
-                    // insert
-                    rowMap.Insert(rowIndex, weight);
-                    table.InsertRow(rowIndex, columns);
+                    AddOrInsertRow(table, rowMap, weight, rowIndex, columns);
                 }
 
                 if (rowMap.Count != table.Rows.Count) throw new InvalidOperationException($"Row mismatch: rowMap: {rowMap.Count}, table: {table.Rows.Count}");
             }
         }
 
-        /// <summary>
-        /// Updates all cells in a given row
-        /// </summary>
-        /// <param name="table"></param>
-        /// <param name="rowIndex"></param>
-        /// <param name="columns"></param>
-        private static void UpdateRow(this Table table, int rowIndex, IEnumerable<IRenderable> columns)
-        {
-            var colIndex = 0;
-            foreach (var column in columns)
-            {
-                table.UpdateCell(rowIndex, colIndex++, column);
-            }
-        }
-
-        /// <inheritdoc cref="UpdateWeighted(Table, int, int, IRenderable)"/>
-        public static Task UpdateWeightedRow(this Table table, int weight, int columnIndex, string value)
-            => UpdateWeightedRow(table, weight, columnIndex, new Markup(value));
+        /// <inheritdoc cref="UpdateWeightedCells(Table, int, IEnumerable{(int columnIndex, IRenderable value)})"/>
+        public static Task UpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, string value)> cells)
+            => UpdateWeightedCells(table, weight, ToRenderable(cells));
 
         /// <summary>
-        /// Update a row based on its weight. The row must have been added with
-        /// <see cref="AddOrUpdateWeightedRow"/> for this to work.
+        /// Update a row based on its weight. If the row doesn't exist it will be added.
         /// </summary>
         /// <param name="table">Table to update</param>
         /// <param name="weight">Weight of row to update. Throws an exception if not found</param>
-        /// <param name="columnIndex">Column to update</param>
-        /// <param name="value">New value</param>
-        public static async Task UpdateWeightedRow(this Table table, int weight, int columnIndex, IRenderable value)
+        /// <param name="cells">Cells and indexes to udpate</param>
+        public static async Task UpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, IRenderable value)> cells)
         {
             var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
 
             using (await _lock.ObtainLock())
             {
-                var rowIndex = rowMap.FindIndex(x => x == weight);
-                if (rowIndex == -1) throw new ArgumentOutOfRangeException("weight not found");
-
-                table.UpdateCell(rowIndex, columnIndex, value);
+                var rowIndex = rowMap.FindIndex(x => x >= weight);
+                if (rowIndex >= 0 && rowMap[rowIndex] == weight)
+                {
+                    // row exists: update cells
+                    foreach (var cell in cells)
+                    {
+                        table.UpdateCell(rowIndex, cell.columnIndex, cell.value);
+                    }
+                }
+                else
+                {
+                    // row doesn't exist: fill in full row, and use rowIndex to add or insert
+                    var row = FillBlankColumns(cells, table.Columns.Count);
+                    AddOrInsertRow(table, rowMap, weight, rowIndex, row);
+                }
             }
         }
 
@@ -117,6 +104,62 @@ namespace TraceRtLive.UI
 
                 rowMap.RemoveAt(rowIndex);
                 table.RemoveRow(rowIndex);
+            }
+        }
+
+        /// <summary>
+        /// Updates all cells in a given row
+        /// </summary>
+        /// <param name="table"></param>
+        /// <param name="rowIndex"></param>
+        /// <param name="columns"></param>
+        private static void UpdateRow(this Table table, int rowIndex, IEnumerable<IRenderable> columns)
+        {
+            var colIndex = 0;
+            foreach (var column in columns)
+            {
+                table.UpdateCell(rowIndex, colIndex++, column);
+            }
+        }
+
+
+        /// <summary>
+        /// Adds (or inserts) a row of given <paramref name="weight"/>.
+        /// Adds/Inserts to <paramref name="table"/> and <paramref name="rowMap"/> at the same time.
+        /// </summary>
+        /// <param name="table">Actual table</param>
+        /// <param name="rowMap">Mapping of indexes to weights</param>
+        /// <param name="weight">Weight</param>
+        /// <param name="rowIndex">Index to insert. -1 for adding to end.</param>
+        /// <param name="columns">Columns to add</param>
+        private static void AddOrInsertRow(Table table, List<int> rowMap, int weight, int rowIndex, IEnumerable<IRenderable> columns)
+        {
+            if (rowIndex == -1)
+            {
+                rowMap.Add(weight);
+                table.AddRow(columns);
+            }
+            else
+            {
+                // insert
+                rowMap.Insert(rowIndex, weight);
+                table.InsertRow(rowIndex, columns);
+            }
+        }
+
+        private static IEnumerable<(int columnIndex, IRenderable value)> ToRenderable(IEnumerable<(int columnIndex, string value)> values)
+            => values.Select(x => (x.columnIndex, (IRenderable)new Markup(x.value)));
+
+        public static IEnumerable<IRenderable> FillBlankColumns(IEnumerable<(int columnIndex, string value)> columnValues, int numColumns)
+            => FillBlankColumns(ToRenderable(columnValues), numColumns);
+
+        public static IEnumerable<IRenderable> FillBlankColumns(IEnumerable<(int columnIndex, IRenderable value)> columnValues, int numColumns)
+        {
+            //TODO: could optimize this more
+            var actuals = columnValues.ToDictionary(k => k.columnIndex, v => v.value);
+            for (var i = 0; i< numColumns; i++)
+            {
+                yield return actuals.TryGetValue(i, out var value) ? value : Text.Empty;
             }
         }
     }

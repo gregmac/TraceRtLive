@@ -43,10 +43,12 @@ namespace TraceRtLive
                 {
                     async Task updateTable(int weight, TraceResult result, string ipColor)
                     {
-                        await table.AddOrUpdateWeightedRow(weight,
-                                result.Hops.ToString(),
-                                $"[{ipColor}]{result.IP?.ToString() ?? Placeholder}[/]",
-                                result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : $"[gray]{Placeholder}[/]");
+                        await table.UpdateWeightedCells(weight, new[]
+                        {
+                            (0, result.Hops.ToString()),
+                            (1, $"[{ipColor}]{result.IP?.ToString() ?? Placeholder}[/]"),
+                            (2, result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : $"[gray]{Placeholder}[/]"),
+                        });
                         live.Refresh();
                         await Task.Yield();
                     }

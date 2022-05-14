@@ -2,6 +2,7 @@
 using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Net;
+using TraceRtLive.DNS;
 using TraceRtLive.Trace;
 using TraceRtLive.UI;
 
@@ -22,13 +23,15 @@ namespace TraceRtLive
 
             [Description("Timeout in milliseconds for each reply")]
             [CommandOption("-w|--timeout")] 
-            public int? TimeoutMilliseconds { get; init; } = 4000;
+            public int? TimeoutMilliseconds { get; init; } = 2000;
         }
 
         public const string Placeholder = "\u2026";
 
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
         {
+            var dnsResolver = new CachingResolver();
+
             if (IPAddress.TryParse(settings.Target, out var target))
             {
                 AnsiConsole.MarkupLine($"Tracing to [cyan]{target}[/]...");
@@ -36,7 +39,7 @@ namespace TraceRtLive
             else
             {
                 AnsiConsole.MarkupLine($"Looking up IP for [darkcyan]{settings.Target}[/]...");
-                var ips = await Dns.GetHostAddressesAsync(settings.Target).ConfigureAwait(false);
+                var ips = await dnsResolver.ResolveAsync(settings.Target).ConfigureAwait(false);
                 if (ips.Length > 1)
                 {
                     AnsiConsole.MarkupLine("Resolved to " + string.Join(", ", ips.Select(x => $"[cyan]{x}[/]")));
@@ -49,13 +52,17 @@ namespace TraceRtLive
             table.AddColumn(new TableColumn("Hop").RightAligned().Width(3));
             table.AddColumn(new TableColumn("IP").Centered().Width(15));
             table.AddColumn(new TableColumn("RTT").RightAligned().Width(10));
+            table.AddColumn(new TableColumn("Hostname"));
 
+            var waitTasks = new List<Task>();
             var returnCode = 1;
 
             await AnsiConsole.Live(table)
                 .StartAsync(async live =>
                 {
-                    async Task updateTable(int weight, TraceResult result, string ipColor)
+                    var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
+
+                    async Task addResult(int weight, TraceResult result, string ipColor)
                     {
                         await table.UpdateWeightedCells(weight, new[]
                         {
@@ -63,24 +70,39 @@ namespace TraceRtLive
                             (1, $"[{ipColor}]{result.IP?.ToString() ?? Placeholder}[/]"),
                             (2, result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : $"[gray]{Placeholder}[/]"),
                         });
+
                         live.Refresh();
                         await Task.Yield();
+
+                        // perform DNS lookup
+                        if (result.IP != null)
+                        {
+                            waitTasks.Add(dnsResolver.ResolveAsync(result.IP, async resolved =>
+                            {
+                                await table.UpdateWeightedCells(weight, new[]
+                                {
+                                    (3, resolved.HostName),
+                                });
+                                live.Refresh();
+                                await Task.Yield();
+                            }));
+                        }
+
                     }
 
-                    var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
                     await tracer.TraceAsync(target, settings.MaxHops.Value,
                         async result =>
                         {
                             switch (result.Status)
                             {
                                 case TraceResultStatus.InProgress:
-                                    await updateTable(result.Hops, result, "gray");
+                                    await addResult(result.Hops, result, "gray");
                                     break;
                                 case TraceResultStatus.HopResult:
-                                    await updateTable(result.Hops, result, "darkcyan");
+                                    await addResult(result.Hops, result, "darkcyan");
                                     break;
                                 case TraceResultStatus.FinalResult:
-                                    await updateTable(int.MaxValue, result, "cyan");
+                                    await addResult(int.MaxValue, result, "cyan");
 
                                     // success, return 0
                                     returnCode = 0;
@@ -93,6 +115,13 @@ namespace TraceRtLive
                                     break;
                             }
                         });
+
+                    // wait for dns tasks
+                    if (waitTasks.Any(x => !x.IsCompleted))
+                    {
+                        //AnsiConsole.MarkupLine("Waiting for all results...");
+                        await Task.WhenAll(waitTasks);
+                    }
                 });
 
             return returnCode;

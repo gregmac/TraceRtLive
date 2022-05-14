@@ -29,7 +29,21 @@ namespace TraceRtLive
 
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
         {
-            var target = IPAddress.Parse(settings.Target);
+            if (IPAddress.TryParse(settings.Target, out var target))
+            {
+                AnsiConsole.MarkupLine($"Tracing to [cyan]{target}[/]...");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"Looking up IP for [darkcyan]{settings.Target}[/]...");
+                var ips = await Dns.GetHostAddressesAsync(settings.Target).ConfigureAwait(false);
+                if (ips.Length > 1)
+                {
+                    AnsiConsole.MarkupLine("Resolved to " + string.Join(", ", ips.Select(x => $"[cyan]{x}[/]")));
+                }
+                target = ips[0];
+                AnsiConsole.MarkupLine($"Tracing to [cyan]{target}[/] ([darkcyan]{settings.Target}[/])...");
+            }
 
             var table = new Table();
             table.AddColumn(new TableColumn("Hop").RightAligned().Width(3));

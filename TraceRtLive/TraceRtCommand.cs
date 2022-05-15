@@ -26,7 +26,9 @@ namespace TraceRtLive
             public int? TimeoutMilliseconds { get; init; } = 2000;
         }
 
-        public const string Placeholder = "\u2026";
+        public const string Placeholder = "[gray]\u2026[/]";
+
+        public const string Failed = "[grey]\u02E3[/]";
 
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
         {
@@ -67,8 +69,13 @@ namespace TraceRtLive
                         await table.UpdateWeightedCells(weight, new[]
                         {
                             (0, result.Hops.ToString()),
-                            (1, $"[{ipColor}]{result.IP?.ToString() ?? Placeholder}[/]"),
-                            (2, result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : $"[gray]{Placeholder}[/]"),
+                            (1, result.IP switch
+                            {
+                                null => Placeholder,
+                                IPAddress ip when ip.Equals(IPAddress.Any) => Failed,
+                                _ => $"[{ipColor}]{result.IP}[/]"
+                            }),
+                            (2, result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : Placeholder),
                         });
 
                         live.Refresh();
@@ -81,7 +88,7 @@ namespace TraceRtLive
                             {
                                 await table.UpdateWeightedCells(weight, new[]
                                 {
-                                    (3, resolved.HostName),
+                                    (3, resolved?.HostName ?? Failed),
                                 });
                                 live.Refresh();
                                 await Task.Yield();

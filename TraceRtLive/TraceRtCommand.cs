@@ -97,7 +97,7 @@ namespace TraceRtLive
 
                     }
 
-                    await tracer.TraceAsync(target, settings.MaxHops.Value,
+                    await tracer.TraceAsync(target, settings.MaxHops.Value, CancellationToken.None,
                         async result =>
                         {
                             switch (result.Status)

@@ -16,7 +16,7 @@ namespace TraceRtLive.Trace
             _ping = ping;
         }
 
-        public async Task TraceAsync(IPAddress target, int maxHops, Action<TraceResult> resultAction,
+        public async Task TraceAsync(IPAddress target, int maxHops, CancellationToken cancellation, Action<TraceResult> resultAction,
             int maxConcurrent = 5)
         {
 
@@ -34,65 +34,61 @@ namespace TraceRtLive.Trace
 
                 await Parallel.ForEachAsync(
                     Enumerable.Range(startHops, numConcurrent),
-                    new ParallelOptions { MaxDegreeOfParallelism = numConcurrent, },
+                    new ParallelOptions { MaxDegreeOfParallelism = numConcurrent, CancellationToken = cancellation },
                     async (hop, _) =>
                     {
-                        try
+                        // indicate started
+                        resultAction.Invoke(new TraceResult
                         {
-                            // indicate started
+                            Status = TraceResultStatus.InProgress,
+                            Hops = hop,
+                        });
+
+                        // execute ping
+                        var pingResult = await _ping.PingAsync(target, hop, cancellation);
+
+                        // check if target
+                        if (target.Equals(pingResult.Address))
+                        {
+                            // always use lowest hop value
+                            lock (targetMinHopsLock)
+                            {
+                                if (hop < targetMinHops) targetMinHops = hop;
+                            }
+
+                            // remove intermediate status result
                             resultAction.Invoke(new TraceResult
                             {
-                                Status = TraceResultStatus.InProgress,
+                                Status = TraceResultStatus.Obsolete,
                                 Hops = hop,
                             });
 
-                            // execute ping
-                            var pingResult = await _ping.PingAsync(target, hop, CancellationToken.None);
-
-                            // check if target
-                            if (target.Equals(pingResult.Address))
+                            // add final result
+                            resultAction.Invoke(new TraceResult
                             {
-                                // always use lowest hop value
-                                lock (targetMinHopsLock)
-                                {
-                                    if (hop < targetMinHops) targetMinHops = hop;
-                                }
-
-                                // remove intermediate status result
-                                resultAction.Invoke(new TraceResult
-                                {
-                                    Status = TraceResultStatus.Obsolete,
-                                    Hops = hop,
-                                });
-
-                                // add final result
-                                resultAction.Invoke(new TraceResult
-                                {
-                                    Status = TraceResultStatus.FinalResult,
-                                    Hops = targetMinHops,
-                                    IP = pingResult.Address,
-                                    RoundTripTime = pingResult.RoundtripTime,
-                                });
-                            }
-                            else
+                                Status = TraceResultStatus.FinalResult,
+                                Hops = targetMinHops,
+                                IP = pingResult.Address,
+                                RoundTripTime = pingResult.RoundtripTime,
+                            });
+                        }
+                        else
+                        {
+                            // add intermediate result
+                            resultAction.Invoke(new TraceResult
                             {
-                                // add intermediate result
-                                resultAction.Invoke(new TraceResult
-                                {
-                                    Status = TraceResultStatus.HopResult,
-                                    Hops = hop,
-                                    IP = pingResult.Address,
-                                    RoundTripTime = pingResult.RoundtripTime,
-                                });
+                                Status = TraceResultStatus.HopResult,
+                                Hops = hop,
+                                IP = pingResult.Address,
+                                RoundTripTime = pingResult.RoundtripTime,
+                            });
 
-                                // if last hop in batch, start the next batch
-                                if (hop == startHops + numConcurrent - 1)
-                                {
-                                    await executeTrace(startHops + numConcurrent);
-                                }
+                            // if last hop in batch, start the next batch
+                            if (hop == startHops + numConcurrent - 1)
+                            {
+                                await executeTrace(startHops + numConcurrent);
                             }
                         }
-                        catch (TaskCanceledException) { /* ignore */ }
                     });
             }
 

@@ -18,12 +18,17 @@ namespace TraceRtLive
 
             [Description("Maximum number of hops to search for target")]
             [CommandOption("-h|--max-hops")]
-            public int? MaxHops { get; init; } = 50;
+            public int MaxHops { get; init; } = 50;
+
+
+            [Description("Number of pings to send for each")]
+            [CommandOption("-n|--num-pings")]
+            public int NumPings { get; init; } = 5;
 
 
             [Description("Timeout in milliseconds for each reply")]
-            [CommandOption("-w|--timeout")] 
-            public int? TimeoutMilliseconds { get; init; } = 2000;
+            [CommandOption("-w|--timeout")]
+            public int TimeoutMilliseconds { get; init; } = 2000;
         }
 
         public const string Placeholder = "[gray]\u2026[/]";
@@ -51,10 +56,13 @@ namespace TraceRtLive
             }
 
             var table = new Table();
-            table.AddColumn(new TableColumn("Hop").RightAligned().Width(3));
-            table.AddColumn(new TableColumn("IP").Centered().Width(15));
-            table.AddColumn(new TableColumn("RTT").RightAligned().Width(10));
-            table.AddColumn(new TableColumn("Hostname"));
+            table.AddColumn(new TableColumn("Hop").RightAligned().Width(3));        // 0
+            table.AddColumn(new TableColumn("IP").Centered().Width(15));            // 1
+            table.AddColumn(new TableColumn("Min").RightAligned().Width(7));        // 2
+            table.AddColumn(new TableColumn("Avg").RightAligned().Width(7));        // 3
+            table.AddColumn(new TableColumn("Max").RightAligned().Width(7));        // 4
+            table.AddColumn(new TableColumn("Fail").RightAligned().Width(10));      // 5
+            table.AddColumn(new TableColumn("Hostname"));                           // 6
 
             var waitTasks = new List<Task>();
             var returnCode = 1;
@@ -62,65 +70,84 @@ namespace TraceRtLive
             await AnsiConsole.Live(table)
                 .StartAsync(async live =>
                 {
-                    var tracer = new AsyncTracer(settings.TimeoutMilliseconds.Value);
+                    var tracer = new AsyncTracer(settings.TimeoutMilliseconds);
 
-                    async Task addResult(int weight, TraceResult result, string ipColor)
+                    async Task addResult(int weight, int hop, IPAddress? ip, string ipColor)
                     {
-                        await table.UpdateWeightedCells(weight, new[]
+                        await table.AddOrUpdateWeightedCells(weight, new[]
                         {
-                            (0, result.Hops.ToString()),
-                            (1, result.IP switch
+                            (0, hop.ToString()),
+                            (1, ip switch
                             {
                                 null => Placeholder,
-                                IPAddress ip when ip.Equals(IPAddress.Any) => Failed,
-                                _ => $"[{ipColor}]{result.IP}[/]"
+                                IPAddress when ip.Equals(IPAddress.Any) => Failed,
+                                _ => $"[{ipColor}]{ip}[/]"
                             }),
-                            (2, result.RoundTripTime.HasValue ? $"[{RttColor(result.RoundTripTime.Value)}]{result.RoundTripTime.Value.TotalMilliseconds:n0}ms[/]" : Placeholder),
                         });
 
                         live.Refresh();
                         await Task.Yield();
 
                         // perform DNS lookup
-                        if (result.IP != null)
+                        if (ip != null)
                         {
-                            waitTasks.Add(dnsResolver.ResolveAsync(result.IP, async resolved =>
+                            waitTasks.Add(dnsResolver.ResolveAsync(ip, async resolved =>
                             {
                                 await table.UpdateWeightedCells(weight, new[]
                                 {
-                                    (3, resolved?.HostName ?? Failed),
+                                    (6, resolved?.HostName ?? Failed),
                                 });
                                 live.Refresh();
                                 await Task.Yield();
                             }));
                         }
-
                     }
 
-                    await tracer.TraceAsync(target, settings.MaxHops.Value, CancellationToken.None,
-                        async result =>
+                    await tracer.TraceAsync(target,
+                        maxHops: settings.MaxHops,
+                        cancellation: CancellationToken.None,
+                        numPings: settings.NumPings,
+                        resultAction: async (hop, traceResultStatus, ip) =>
                         {
-                            switch (result.Status)
+                            switch (traceResultStatus)
                             {
                                 case TraceResultStatus.InProgress:
-                                    await addResult(result.Hops, result, "gray");
+                                    await addResult(hop, hop, ip, "gray");
                                     break;
                                 case TraceResultStatus.HopResult:
-                                    await addResult(result.Hops, result, "darkcyan");
+                                    await addResult(hop, hop, ip, "darkcyan");
                                     break;
                                 case TraceResultStatus.FinalResult:
-                                    await addResult(int.MaxValue, result, "cyan");
+                                    await addResult(hop, hop, ip, "cyan");
 
                                     // success, return 0
                                     returnCode = 0;
 
                                     break;
                                 case TraceResultStatus.Obsolete:
-                                    await table.RemoveWeightedRow(result.Hops);
+                                    await table.RemoveWeightedRow(hop);
                                     live.Refresh();
                                     await Task.Yield();
                                     break;
                             }
+                        },
+                        pingAction: async (hop, pingReply) =>
+                        {
+                            var percentFail = pingReply.NumFail / pingReply.NumSent * 100.0;
+                            var failColor = pingReply.NumFail == 0 ? "green"
+                                : pingReply.NumFail < 3 ? "darkred" // arbitrary cut-off
+                                : "red";
+
+                            await table.UpdateWeightedCells(hop, new[]
+                            {
+                                (2, $"[{RttColor(pingReply.RoundTripTimeMin)}]{pingReply.RoundTripTimeMin.TotalMilliseconds:n0}ms[/]"),
+                                (3, $"[{RttColor(pingReply.RoundTripTimeMean)}]{pingReply.RoundTripTimeMean.TotalMilliseconds:n0}ms[/]"),
+                                (4, $"[{RttColor(pingReply.RoundTripTimeMax)}]{pingReply.RoundTripTimeMax.TotalMilliseconds:n0}ms[/]"),
+                                (5, $"[{failColor}]{pingReply.NumFail}[/] [gray]{percentFail,3:n0}%[/]"),
+                            });
+
+                            live.Refresh();
+                            await Task.Yield();
                         });
 
                     // wait for dns tasks

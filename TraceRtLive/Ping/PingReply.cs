@@ -13,7 +13,7 @@ namespace TraceRtLive.Ping
         public TimeSpan RoundTripTimeMin { get; init; }
         public TimeSpan RoundTripTimeMax { get; init; }
         public TimeSpan RoundTripTimeMean { get; init; }
-        public int NumSuccess { get; init; }
+        public int NumSent { get; init; }
         public int NumFail { get; init; }
     }
 }

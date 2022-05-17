@@ -30,5 +30,13 @@
             }
             throw new InvalidOperationException("The source sequence is empty");
         }
+
+        /// <summary>
+        /// Get the next item from an <see cref="IAsyncEnumerator{T}"/>.
+        /// </summary>
+        /// <typeparam name="T">Type being iterated</typeparam>
+        /// <param name="source">Collection to find the next item of</param>
+        public static async Task<T?> NextOrDefaultAsync<T>(this IAsyncEnumerator<T> source)
+            => await source.MoveNextAsync() ? source.Current : default;
     }
 }

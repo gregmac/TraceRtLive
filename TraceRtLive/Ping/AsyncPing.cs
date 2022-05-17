@@ -41,7 +41,8 @@ namespace TraceRtLive.Ping
         {
             using var ping = new NetPing();
             var stats = new TimeStats();
-            var numSuccess = 0;
+
+            var numSent = 0;
             var numFail = 0;
 
             var pingOptions = new PingOptions { Ttl = ttl, DontFragment = true };
@@ -61,14 +62,8 @@ namespace TraceRtLive.Ping
                 var rtt = DateTime.UtcNow.Subtract(sent);
                 stats.Add(rtt);
 
-                if (result.Status == IPStatus.Success)
-                {
-                    numSuccess++;
-                }
-                else
-                {
-                    numFail++;
-                }
+                numSent++; 
+                if (result.Status != IPStatus.Success && result.Status != IPStatus.TtlExpired) numFail++;
 
                 yield return new PingReply
                 {
@@ -78,7 +73,7 @@ namespace TraceRtLive.Ping
                     RoundTripTimeMin = stats.Min,
                     RoundTripTimeMax = stats.Max,
                     RoundTripTimeMean = stats.Mean,
-                    NumSuccess = numSuccess,
+                    NumSent = numSent,
                     NumFail = numFail,
                 };
 

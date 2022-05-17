@@ -56,12 +56,29 @@ namespace TraceRtLive.UI
             => UpdateWeightedCells(table, weight, ToRenderable(cells));
 
         /// <summary>
+        /// Update a row based on its weight. If the row doesn't exist it will be ignored.
+        /// </summary>
+        /// <param name="table">Table to update</param>
+        /// <param name="weight">Weight of row to update. Throws an exception if not found</param>
+        /// <param name="cells">Cells and indexes to udpate</param>
+        public static Task UpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, IRenderable value)> cells)
+            => UpdateWeightedCells(table, weight, allowAdd: false, cells);
+
+
+        /// <inheritdoc cref="AddOrUpdateWeightedCells(Table, int, IEnumerable{(int columnIndex, IRenderable value)})"/>
+        public static Task AddOrUpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, string value)> cells)
+            => AddOrUpdateWeightedCells(table, weight, ToRenderable(cells));
+
+        /// <summary>
         /// Update a row based on its weight. If the row doesn't exist it will be added.
         /// </summary>
         /// <param name="table">Table to update</param>
         /// <param name="weight">Weight of row to update. Throws an exception if not found</param>
         /// <param name="cells">Cells and indexes to udpate</param>
-        public static async Task UpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, IRenderable value)> cells)
+        public static Task AddOrUpdateWeightedCells(this Table table, int weight, IEnumerable<(int columnIndex, IRenderable value)> cells)
+            => UpdateWeightedCells(table, weight, allowAdd: true, cells);
+
+        private static async Task UpdateWeightedCells(this Table table, int weight, bool allowAdd, IEnumerable<(int columnIndex, IRenderable value)> cells)
         {
             var rowMap = Mappings.GetOrAdd(table, _ => new List<int>());
 
@@ -76,7 +93,7 @@ namespace TraceRtLive.UI
                         table.UpdateCell(rowIndex, cell.columnIndex, cell.value);
                     }
                 }
-                else
+                else if (allowAdd)
                 {
                     // row doesn't exist: fill in full row, and use rowIndex to add or insert
                     var row = FillBlankColumns(cells, table.Columns.Count);

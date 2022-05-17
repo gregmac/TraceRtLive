@@ -29,6 +29,17 @@ namespace TraceRtLive.Tests.Helpers
             (await EmptyAsyncEnumerable().FirstOrDefaultAsync()).ShouldBeNull();
         }
 
+        [Test]
+        public async Task NextOrDefaultAsync()
+        {
+            var enumerator = CreateAsyncEnumerable(Enumerable.Range(0,3)).GetAsyncEnumerator();
+
+            (await enumerator.NextOrDefaultAsync().ConfigureAwait(false)).ShouldBe(0);
+            (await enumerator.NextOrDefaultAsync().ConfigureAwait(false)).ShouldBe(1);
+            (await enumerator.NextOrDefaultAsync().ConfigureAwait(false)).ShouldBe(2);
+            (await enumerator.NextOrDefaultAsync().ConfigureAwait(false)).ShouldBe(default(int));
+        }
+
         private static async IAsyncEnumerable<int?> SingleAsyncEnumerable()
         {
             yield return 1;
@@ -41,6 +52,13 @@ namespace TraceRtLive.Tests.Helpers
             await Task.Delay(1).ConfigureAwait(false);
             yield break;
         }
-
+        private static async IAsyncEnumerable<T> CreateAsyncEnumerable<T>(IEnumerable<T> source)
+        {
+            foreach (var item in source)
+            {
+                await Task.Delay(1);
+                yield return item;
+            }
+        }
     }
 }

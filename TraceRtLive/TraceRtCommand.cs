@@ -37,7 +37,7 @@ namespace TraceRtLive
 
         public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
         {
-            var dnsResolver = new CachingResolver();
+            var dnsResolver = new DnsResolver();
 
             if (IPAddress.TryParse(settings.Target, out var target))
             {
@@ -64,7 +64,6 @@ namespace TraceRtLive
             table.AddColumn(new TableColumn("Fail").RightAligned().Width(10));      // 5
             table.AddColumn(new TableColumn("Hostname"));                           // 6
 
-            var waitTasks = new List<Task>();
             var returnCode = 1;
 
             await AnsiConsole.Live(table)
@@ -87,20 +86,6 @@ namespace TraceRtLive
 
                         live.Refresh();
                         await Task.Yield();
-
-                        // perform DNS lookup
-                        if (ip != null)
-                        {
-                            waitTasks.Add(dnsResolver.ResolveAsync(ip, async resolved =>
-                            {
-                                await table.UpdateWeightedCells(weight, new[]
-                                {
-                                    (6, resolved?.HostName ?? Failed),
-                                });
-                                live.Refresh();
-                                await Task.Yield();
-                            }));
-                        }
                     }
 
                     await tracer.TraceAsync(target,
@@ -148,14 +133,16 @@ namespace TraceRtLive
 
                             live.Refresh();
                             await Task.Yield();
+                        },
+                        dnsResolvedAction: async (hop, reverseDns) =>
+                        {
+                            await table.UpdateWeightedCells(hop, new[]
+                                {
+                                    (6, reverseDns?.HostName ?? Failed),
+                                });
+                            live.Refresh();
+                            await Task.Yield();
                         });
-
-                    // wait for dns tasks
-                    if (waitTasks.Any(x => !x.IsCompleted))
-                    {
-                        //AnsiConsole.MarkupLine("Waiting for all results...");
-                        await Task.WhenAll(waitTasks);
-                    }
                 });
 
             return returnCode;

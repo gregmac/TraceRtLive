@@ -20,14 +20,12 @@ namespace TraceRtLive
             [CommandOption("-h|--max-hops")]
             public int MaxHops { get; init; } = 50;
 
-
-            [Description("Number of pings to send for each")]
-            [CommandOption("-n|--num-pings")]
-            public int NumPings { get; init; } = 5;
-
+            [Description("How many seconds to execute for. When this is non-zero, pings are sent to each hop every second to gather statistics.")]
+            [CommandOption("-t|--time")]
+            public int ExecuteSeconds { get; init; } = 0;
 
             [Description("Timeout in milliseconds for each reply")]
-            [CommandOption("-w|--timeout")]
+            [CommandOption("-w|--hop-timeout")]
             public int TimeoutMilliseconds { get; init; } = 2000;
         }
 
@@ -66,14 +64,30 @@ namespace TraceRtLive
 
             var returnCode = 1;
 
+            // control ping mode based on ExecuteSeconds
+            CancellationToken cancellation;
+            int numPings;
+            if (settings.ExecuteSeconds > 0)
+            {
+                var runtime = TimeSpan.FromSeconds(settings.ExecuteSeconds);
+                cancellation = new CancellationTokenSource(runtime).Token;
+                numPings = int.MaxValue; // indefinitely
+                AnsiConsole.MarkupLine($"Running for [darkcyan]{runtime}[/]...");
+            }
+            else
+            {
+                cancellation = CancellationToken.None;
+                numPings = 1;
+            }
+
             await AnsiConsole.Live(table)
                 .StartAsync(async live =>
                 {
                     var tracer = new AsyncTracer(settings.TimeoutMilliseconds);
                     await tracer.TraceAsync(target,
                         maxHops: settings.MaxHops,
-                        cancellation: CancellationToken.None,
-                        numPings: settings.NumPings,
+                        cancellation: cancellation,
+                        numPings: numPings,
                         resultAction: async (hop, traceResultStatus, ip) =>
                         {
                             if (traceResultStatus == TraceResultStatus.Obsolete)

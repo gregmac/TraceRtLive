@@ -70,51 +70,38 @@ namespace TraceRtLive
                 .StartAsync(async live =>
                 {
                     var tracer = new AsyncTracer(settings.TimeoutMilliseconds);
-
-                    async Task addResult(int weight, int hop, IPAddress? ip, string ipColor)
-                    {
-                        await table.AddOrUpdateWeightedCells(weight, new[]
-                        {
-                            (0, hop.ToString()),
-                            (1, ip switch
-                            {
-                                null => Placeholder,
-                                IPAddress when ip.Equals(IPAddress.Any) => Failed,
-                                _ => $"[{ipColor}]{ip}[/]"
-                            }),
-                        });
-
-                        live.Refresh();
-                        await Task.Yield();
-                    }
-
                     await tracer.TraceAsync(target,
                         maxHops: settings.MaxHops,
                         cancellation: CancellationToken.None,
                         numPings: settings.NumPings,
                         resultAction: async (hop, traceResultStatus, ip) =>
                         {
-                            switch (traceResultStatus)
+                            if (traceResultStatus == TraceResultStatus.Obsolete)
                             {
-                                case TraceResultStatus.InProgress:
-                                    await addResult(hop, hop, ip, "gray");
-                                    break;
-                                case TraceResultStatus.HopResult:
-                                    await addResult(hop, hop, ip, "darkcyan");
-                                    break;
-                                case TraceResultStatus.FinalResult:
-                                    await addResult(hop, hop, ip, "cyan");
-
-                                    // success, return 0
-                                    returnCode = 0;
-
-                                    break;
-                                case TraceResultStatus.Obsolete:
-                                    await table.RemoveWeightedRow(hop);
-                                    live.Refresh();
-                                    await Task.Yield();
-                                    break;
+                                await table.RemoveWeightedRow(hop);
                             }
+                            else
+                            {
+                                var ipColor = traceResultStatus switch
+                                {
+                                    TraceResultStatus.HopResult => "darkcyan",
+                                    TraceResultStatus.FinalResult => "cyan",
+                                    _ => "gray"
+                                };
+                                await table.AddOrUpdateWeightedCells(hop, new[]
+                                {
+                                    (0, hop.ToString()),
+                                    (1, ip switch
+                                    {
+                                        null => Placeholder,
+                                        IPAddress when ip.Equals(IPAddress.Any) => Failed,
+                                        _ => $"[{ipColor}]{ip}[/]"
+                                    }),
+                                });
+                            }
+                            
+                            live.Refresh();
+                            await Task.Yield();
                         },
                         pingAction: async (hop, pingReply) =>
                         {

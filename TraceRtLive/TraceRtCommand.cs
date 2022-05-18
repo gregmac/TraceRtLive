@@ -17,14 +17,14 @@ namespace TraceRtLive
             public string? Target { get; init; }
 
             [Description("Maximum number of hops to search for target")]
-            [CommandOption("-h|--max-hops")]
+            [CommandOption("--max-hops")]
             public int MaxHops { get; init; } = 50;
 
-            [Description("How many seconds to execute for. When this is non-zero, pings are sent to each hop every second to gather statistics.")]
+            [Description("How many seconds to execute for. When this is non-zero, pings are sent to each hop once a second to gather statistics.")]
             [CommandOption("-t|--time")]
             public int ExecuteSeconds { get; init; } = 0;
 
-            [Description("Timeout in milliseconds for each reply")]
+            [Description("Timeout in milliseconds for each reply. Defaults to 2000ms.")]
             [CommandOption("-w|--hop-timeout")]
             public int TimeoutMilliseconds { get; init; } = 2000;
         }

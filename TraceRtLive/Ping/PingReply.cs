@@ -15,5 +15,6 @@ namespace TraceRtLive.Ping
         public TimeSpan RoundTripTimeMean { get; init; }
         public int NumSent { get; init; }
         public int NumFail { get; init; }
+        public int[]? History { get; internal set; }
     }
 }

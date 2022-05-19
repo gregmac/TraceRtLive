@@ -35,12 +35,13 @@ namespace TraceRtLive.Trace
         /// If <see langword="null"/> no DNS lookups are performed.</param>
         /// <param name="maxConcurrent">Maximum number of concurrent hops to check</param>
         /// <param name="numPings">Number of pings to send to each hop</param>
+        /// <param name="numHistoryPings">Number of pings to track in <see cref="PingReply.History"/></param>
         /// <returns></returns>
         public async Task TraceAsync(IPAddress target, int maxHops, CancellationToken cancellation,
             Action<int, TraceResultStatus, IPAddress?> resultAction,
             Action<int, PingReply>? pingAction = null,
             Action<int, IPHostEntry?>? dnsResolvedAction = null,
-            int maxConcurrent = 5, int numPings = 5)
+            int maxConcurrent = 5, int numPings = 6, int numHistoryPings = 6)
         {
             // record hops values
             var targetMinHops = int.MaxValue;
@@ -68,7 +69,7 @@ namespace TraceRtLive.Trace
                         resultAction?.Invoke(hops, TraceResultStatus.InProgress, null);
 
                         // start ping execution
-                        var pings = _ping.PingMultipleAsync(target, numPings: numPings, ttl: hops, cancellation: cancellation).GetAsyncEnumerator(cancellation);
+                        var pings = _ping.PingMultipleAsync(target, numPings: numPings, numHistoryPings: numHistoryPings, ttl: hops, cancellation: cancellation).GetAsyncEnumerator(cancellation);
                         var pingResult = await pings.NextOrDefaultAsync().ConfigureAwait(false);
 
                         // check if target

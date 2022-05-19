@@ -43,7 +43,7 @@ namespace TraceRtLive.Tests
 			}
 		}
 
-        public IAsyncEnumerable<PingReply> PingMultipleAsync(IPAddress target, int numPings, int ttl = 128, CancellationToken cancellation = default)
+        public IAsyncEnumerable<PingReply> PingMultipleAsync(IPAddress target, int numPings, int ttl = 128, int numHistoryPings = 0, CancellationToken cancellation = default)
         {
             throw new NotImplementedException();
         }

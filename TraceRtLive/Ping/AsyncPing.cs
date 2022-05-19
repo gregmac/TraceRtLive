@@ -34,13 +34,14 @@ namespace TraceRtLive.Ping
 
         /// <inheritdoc/>
         public async Task<PingReply> PingAsync(IPAddress target, int ttl = 128, CancellationToken cancellation = default)
-            => await PingMultipleAsync(target, 1, ttl, cancellation).FirstAsync().ConfigureAwait(false);
+            => await PingMultipleAsync(target, 1, ttl, 0, cancellation).FirstAsync().ConfigureAwait(false);
 
         /// <inheritdoc/>
-        public async IAsyncEnumerable<PingReply> PingMultipleAsync(IPAddress target, int numPings, int ttl = 128, [EnumeratorCancellation] CancellationToken cancellation = default)
+        public async IAsyncEnumerable<PingReply> PingMultipleAsync(IPAddress target, int numPings, int ttl = 128, int numHistoryPings = 0, [EnumeratorCancellation] CancellationToken cancellation = default)
         {
             using var ping = new NetPing();
             var stats = new TimeStats();
+            var history = numHistoryPings > 0 ? new CircularBuffer<int>(numHistoryPings) : null;
 
             var numSent = 0;
             var numFail = 0;
@@ -61,6 +62,7 @@ namespace TraceRtLive.Ping
 
                 var rtt = DateTime.UtcNow.Subtract(sent);
                 stats.Add(rtt);
+                history?.Add((int)rtt.TotalMilliseconds);
 
                 numSent++; 
                 if (result.Status != IPStatus.Success && result.Status != IPStatus.TtlExpired) numFail++;
@@ -75,6 +77,7 @@ namespace TraceRtLive.Ping
                     RoundTripTimeMean = stats.Mean,
                     NumSent = numSent,
                     NumFail = numFail,
+                    History = history?.ToArray(),
                 };
 
                 cancellation.ThrowIfCancellationRequested();

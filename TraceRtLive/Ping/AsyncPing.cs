@@ -71,7 +71,7 @@ namespace TraceRtLive.Ping
                 {
                     Address = result.Address.Equals(IPAddress.Any) ? null : result.Address,
                     Status = result.Status,
-                    RoundtripTime = rtt,
+                    RoundTripTime = rtt,
                     RoundTripTimeMin = stats.Min,
                     RoundTripTimeMax = stats.Max,
                     RoundTripTimeMean = stats.Mean,

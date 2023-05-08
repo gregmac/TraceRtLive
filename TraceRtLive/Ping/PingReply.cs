@@ -9,7 +9,7 @@ namespace TraceRtLive.Ping
 
         public IPAddress? Address { get; init; }
 
-        public TimeSpan RoundtripTime { get; init; }
+        public TimeSpan RoundTripTime { get; init; }
         public TimeSpan RoundTripTimeMin { get; init; }
         public TimeSpan RoundTripTimeMax { get; init; }
         public TimeSpan RoundTripTimeMean { get; init; }

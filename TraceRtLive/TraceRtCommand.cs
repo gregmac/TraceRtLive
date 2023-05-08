@@ -70,9 +70,10 @@ namespace TraceRtLive
             table.AddColumn(new TableColumn("Min").RightAligned().Width(7));        // 2
             table.AddColumn(new TableColumn("Avg").RightAligned().Width(7));        // 3
             table.AddColumn(new TableColumn("Max").RightAligned().Width(7));        // 4
-            table.AddColumn(new TableColumn("Pings").RightAligned().Width(5));        // 5
-            table.AddColumn(new TableColumn("Fail").RightAligned().Width(10));      // 6
-            table.AddColumn(new TableColumn("Hostname"));                           // 7
+            table.AddColumn(new TableColumn("Last").RightAligned().Width(7));       // 5
+            table.AddColumn(new TableColumn("Pings").RightAligned().Width(5));      // 6
+            table.AddColumn(new TableColumn("Fail").RightAligned().Width(10));      // 7
+            table.AddColumn(new TableColumn("Hostname"));                           // 8
 
             var returnCode = 1;
 
@@ -143,8 +144,9 @@ namespace TraceRtLive
                                     (2, $"[{RttColor(pingReply.RoundTripTimeMin)}]{pingReply.RoundTripTimeMin.TotalMilliseconds:n0}ms[/]"),
                                     (3, $"[{RttColor(pingReply.RoundTripTimeMean)}]{pingReply.RoundTripTimeMean.TotalMilliseconds:n0}ms[/]"),
                                     (4, $"[{RttColor(pingReply.RoundTripTimeMax)}]{pingReply.RoundTripTimeMax.TotalMilliseconds:n0}ms[/]"),
-                                    (5, BrailleBarGraph.CreateGraph(pingReply.History ?? Array.Empty<int>(), highestValue: 100, alignRight: true)),
-                                    (6, $"[{failColor}]{pingReply.NumFail}[/] [gray]{percentFail,3:n0}%[/]"),
+                                    (5, $"[{RttColor(pingReply.RoundTripTime)}]{pingReply.RoundTripTime.TotalMilliseconds:n0}ms[/]"),
+                                    (6, BrailleBarGraph.CreateGraph(pingReply.History ?? Array.Empty<int>(), highestValue: 100, alignRight: true)),
+                                    (7, $"[{failColor}]{pingReply.NumFail}[/] [gray]{percentFail,3:n0}%[/]"),
                                 });
 
                                 live.Refresh();
@@ -154,7 +156,7 @@ namespace TraceRtLive
                             {
                                 await table.UpdateWeightedCells(hop, new[]
                                     {
-                                    (7, reverseDns?.HostName ?? Failed),
+                                    (8, reverseDns?.HostName ?? Failed),
                                     });
                                 live.Refresh();
                                 await Task.Yield();

@@ -28,7 +28,7 @@ namespace TraceRtLive.Tests
 				return new PingReply
 				{
 					Address = new IPAddress(new byte[] { 10, 10, 10, (byte)ttl }),
-					RoundtripTime = rtt,
+					RoundTripTime = rtt,
 					Status = _rttValues[rttIndex] > 0 ? IPStatus.TtlExpired : IPStatus.TimedOut,
 				};
 			}
@@ -37,7 +37,7 @@ namespace TraceRtLive.Tests
 				return new PingReply
 				{
 					Address = target,
-					RoundtripTime = rtt,
+					RoundTripTime = rtt,
 					Status = _rttValues[rttIndex] > 0 ? IPStatus.Success : IPStatus.TimedOut,
 				};
 			}

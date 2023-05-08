@@ -1,4 +1,4 @@
-﻿using Spectre.Console;
+﻿﻿using Spectre.Console;
 using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Net;
@@ -44,8 +44,19 @@ namespace TraceRtLive
             else
             {
                 AnsiConsole.MarkupLine($"Looking up IP for [darkcyan]{settings.Target}[/]...");
-                var ips = await dnsResolver.ResolveAsync(settings.Target).ConfigureAwait(false);
-                if (ips.Length > 1)
+                //
+                var ips = await dnsResolver.ResolveAsync(settings.Target!).ConfigureAwait(false);
+                if (ips == null)
+                {
+                    AnsiConsole.MarkupLine($"[red]Failed resolving[/] [darkcyan]{settings.Target}[/]");
+                    return -1;
+                }
+                else if (ips.Length == 0)
+                {
+                    AnsiConsole.MarkupLine($"[red]Faile to resolve any IPs for[/] [darkcyan]{settings.Target}[/]");
+                    return -1;
+                }
+                else
                 {
                     AnsiConsole.MarkupLine("Resolved to " + string.Join(", ", ips.Select(x => $"[cyan]{x}[/]")));
                 }

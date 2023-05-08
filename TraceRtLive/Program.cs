@@ -10,7 +10,7 @@ try
         c.PropagateExceptions();
         var assembly = typeof(TraceRtCommand).Assembly.GetName();
         c.SetApplicationName("TraceRtLive");
-        c.SetApplicationVersion(assembly.Version.ToString());
+        c.SetApplicationVersion(assembly.Version!.ToString());
         c.AddExample(new[] { "8.8.8.8" });
     });
     return await app.RunAsync(args);

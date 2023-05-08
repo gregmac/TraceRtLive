@@ -72,6 +72,11 @@ namespace TraceRtLive.Trace
                         var pings = _ping.PingMultipleAsync(target, numPings: numPings, numHistoryPings: numHistoryPings, ttl: hops, cancellation: cancellation).GetAsyncEnumerator(cancellation);
                         var pingResult = await pings.NextOrDefaultAsync().ConfigureAwait(false);
 
+                        if (pingResult == null)
+                        {
+                            throw new InvalidOperationException($"Null ping result for {target}");
+                        }
+
                         // check if target
                         if (target.Equals(pingResult?.Address))
                         {

@@ -2,13 +2,14 @@
 using Spectre.Console.Cli;
 using System.ComponentModel;
 using System.Net;
+using System.Text;
 using TraceRtLive.DNS;
 using TraceRtLive.Trace;
 using TraceRtLive.UI;
 
 namespace TraceRtLive
 {
-    internal sealed class TraceRtCommand : AsyncCommand<TraceRtCommand.Settings>
+    public sealed class TraceRtCommand : AsyncCommand<TraceRtCommand.Settings>
     {
         public class Settings : CommandSettings
         {
@@ -145,7 +146,7 @@ namespace TraceRtLive
                                     (3, $"[{RttColor(pingReply.RoundTripTimeMean)}]{pingReply.RoundTripTimeMean.TotalMilliseconds:n0}ms[/]"),
                                     (4, $"[{RttColor(pingReply.RoundTripTimeMax)}]{pingReply.RoundTripTimeMax.TotalMilliseconds:n0}ms[/]"),
                                     (5, $"[{RttColor(pingReply.RoundTripTime)}]{pingReply.RoundTripTime.TotalMilliseconds:n0}ms[/]"),
-                                    (6, BrailleBarGraph.CreateGraph(pingReply.History ?? Array.Empty<int>(), highestValue: 100, alignRight: true)),
+                                    (6, BrailleBarGraph.CreateGraph(pingReply.History ?? Array.Empty<int>(), highestValue: 100, alignRight: true, renderCallback: RenderColorGlyph)),
                                     (7, $"[{failColor}]{pingReply.NumFail}[/] [gray]{percentFail,3:n0}%[/]"),
                                 });
 
@@ -170,13 +171,20 @@ namespace TraceRtLive
 
         private static readonly Dictionary<TimeSpan, string> ColorThresholds = new Dictionary<TimeSpan, string>
         {
-            { TimeSpan.FromSeconds(2), "Red" },
-            { TimeSpan.FromSeconds(1), "DarkRed" },
-            { TimeSpan.FromMilliseconds(200), "DarkGreen" },
             { TimeSpan.Zero, "Green" },
+            { TimeSpan.FromMilliseconds(200), "DarkGreen" },
+            { TimeSpan.FromSeconds(1), "DarkRed" },
+            { TimeSpan.FromSeconds(2), "Red" },
         };
 
-        private static string RttColor(TimeSpan time)
-            => ColorThresholds.FirstOrDefault(x => time >= x.Key).Value ?? "Green";
+        public static string RttColor(TimeSpan time)
+            => ColorThresholds.LastOrDefault(x => time >= x.Key).Value ?? "Red";
+
+        public static void RenderColorGlyph(int a, int b, char glyph, StringBuilder result)
+        {
+            var index = Math.Min(new[] { a, b, 1 }.Max(), ColorThresholds.Count) - 1;
+            var color = ColorThresholds.Values.ElementAt(index);
+            result.Append('[').Append(color).Append(']').Append(glyph).Append("[/]");
+        }
     }
 }

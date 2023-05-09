@@ -4,15 +4,20 @@ namespace TraceRtLive.UI
 {
     public static class BrailleBarGraph
     {
+        /// <inheritdoc cref="CreateGraph(int[], int, bool)"/>
+        public static string CreateGraph(int[] values, int highestValue = 4, bool alignRight = false)
+            => CreateGraph(values, (_,__,c,sb) => sb.Append(c), highestValue, alignRight);
+
         /// <summary>
         /// Create a graph based on Braille unicode characters.
         /// The charted <paramref name="values"/> are scaled to 0 to 4 dots, with
         /// 4 dots corresponding to at least <paramref name="highestValue"/> (or higher, if a passed is higher).
         /// </summary>
         /// <param name="values">Values to graph</param>
+        /// <param name="renderCallback">Function to take the character and append it to the <see cref="StringBuilder"/>.</param>
         /// <param name="highestValue">Initial highest value</param>
         /// <param name="alignRight">If true, the dots are aligned to the right rather than the left</param>
-        public static string CreateGraph(int[] values, int highestValue = 4, bool alignRight = false)
+        public static string CreateGraph(int[] values, Action<int, int, char, StringBuilder> renderCallback, int highestValue = 4, bool alignRight = false)
         {
             if (!(values?.Length > 0)) return string.Empty;
 
@@ -32,7 +37,9 @@ namespace TraceRtLive.UI
             if (alignRight && isOdd)
             {
                 if (!enumerator.MoveNext()) return String.Empty;
-                result.Append(GetGraphChar(0, enumerator.Current));
+
+                // pass values and character to render function
+                renderCallback(0, enumerator.Current, GetGraphChar(0, enumerator.Current), result);
             }
 
             while (enumerator.MoveNext())
@@ -40,7 +47,8 @@ namespace TraceRtLive.UI
                 var a = enumerator.Current;
                 var b = enumerator.MoveNext() ? enumerator.Current : 0;
 
-                result.Append(GetGraphChar(a, b));
+                // pass values and character to render function
+                renderCallback(a, b, GetGraphChar(a,b), result);
             }
 
             return result.ToString();
